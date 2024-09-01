@@ -1,0 +1,65 @@
+name: Deploy to GKE
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  CLUSTER_NAME: my-gke-cluster
+  IMAGE_TAG: v1
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
+
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker
+
+      - name: Build Docker Image
+        run: |
+          docker build -t gcr.io/${{ env.PROJECT_ID }}/my-time-api:${{ env.IMAGE_TAG }} ./api
+
+      - name: Push Docker Image
+        run: |
+          docker push gcr.io/${{ env.PROJECT_ID }}/my-time-api:${{ env.IMAGE_TAG }}
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: |
+          terraform init
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: |
+          terraform apply -var="project_id=${{ env.PROJECT_ID }}" -auto-approve
+
+      - name: Get API Endpoint
+        id: api_endpoint
+        working-directory: ./terraform
+        run: echo "::set-output name=endpoint::$(terraform output -raw api_endpoint)"
+
+      - name: Wait for API to be Ready
+        run: sleep 60
+
+      - name: Test API Endpoint
+        run: |
+          API_URL=${{ steps.api_endpoint.outputs.endpoint }}
+          RESPONSE=$(curl -s http://$API_URL/time)
+          echo "API Response: $RESPONSE"
+          echo "$RESPONSE" | grep -q '"current_time"' || exit 1
+
