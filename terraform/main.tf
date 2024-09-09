@@ -1,5 +1,5 @@
 module "network" {
-  source      = "./modules/network"
+  source       = "./modules/network"
   network_name = var.network_name
   subnet_name  = var.subnet_name
   region       = var.region

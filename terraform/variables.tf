@@ -39,3 +39,9 @@ variable "node_count" {
   default     = 3
 }
 
+variable "alert_email" {
+  description = "Email address for alerts"
+  type        = string
+  default     = "ejiro.dafe@gmail.com"
+}
+
